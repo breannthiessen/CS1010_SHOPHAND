@@ -2,16 +2,21 @@
 ShopHand: 
 This file holds all the functions that the interface script interacts with to ensure
 that the user gets the data they want.
+sqlite3: used for the database
+datetime: finds the current date to find default for startDate and endDate
+pickle: used to save the jobID and allow the jobID to constantly be a unique key
+os: used to find the desktop path for exporting report files
 Author: Breann Thiessen
 '''
 
-import sqlite3
-from datetime import date
-import pickle #used to save the jobID and allow the jobID to constantly be a unique key
-
+import sqlite3 
+from datetime import date 
+import pickle 
+import os 
+#still need to import stupid fpdf
 #jobs to be chosen from
 jobs = ["None", "Brakes", "Head Lights", "Oil Change", "Tail Lights", "U-Joints", "Wheel Bearings"]
-chosenJob = "" #holds the job chosen
+chosenJob = None #holds the job chosen
 chosenUnits = [] #holds all units
 startDate = str(date.today()) #holds the start date for repair report
 endDate = str(date.today()) #holds the end date for repair report
@@ -52,30 +57,37 @@ def getToolPart(e):
     global chosenJob
     width = 21 #used to format the list
     #still need to generate a PDF
-    if (chosenJob != 'None'):
-        if len(chosenUnits) > 0:
-            for x in range(len(chosenUnits)):
-                global jobID 
-                conn = sqlite3.connect("testShop.db")
-                c = conn.cursor()
-                print("UNIT %d: %s\n" % (chosenUnits[x], chosenJob))
-                print("Tool Name             Quantity")
-                c.execute('''SELECT Tool_List.Tool_name, Tool_List.Quantity
-                             FROM Tool_List
-                             WHERE Tool_List.Job_name = '%s' and Tool_List.VIN =
-                             (SELECT Truck.VIN FROM Truck WHERE Unit_number = %d)
-                             ''' % (chosenJob, chosenUnits[x]))
-                y = c.fetchall()
-                for x in range(len(y)):
-                    print("%s %d" %(y[x][0].ljust(width), y[x][1]))
-                #insertJob(c, conn, chosenUnits[x])
-                #print("\nPart Name          Quantity")
-                c.execute("SELECT Job.Time_needed FROM Job WHERE Job.Job_name = '%s'" %(chosenJob))
-                y = c.fetchone()[0]
-                print("\nHours Needed: %d".ljust(width) % (y))
-                conn.close()
+    if (chosenJob != 'None' and chosenJob != None and (len(chosenUnits) > 0)):
+        desktop= os.path.join(os.environ['USERPROFILE'], 'Desktop', "Repair_Job.txt")
+        list = open(desktop, "w+")
+        for x in range(len(chosenUnits)):
+            global jobID 
+            conn = sqlite3.connect("testShop.db")
+            c = conn.cursor()
+            list.write("UNIT %d: %s\n\n" % (chosenUnits[x], chosenJob))
+            list.write("Tool Name             Quantity\n")
+            c.execute('''SELECT Tool_List.Tool_name, Tool_List.Quantity
+                         FROM Tool_List
+                         WHERE Tool_List.Job_name = '%s' and Tool_List.VIN =
+                         (SELECT Truck.VIN FROM Truck WHERE Unit_number = %d)
+                         ''' % (chosenJob, chosenUnits[x]))
+            y = c.fetchall()
+            for x in range(len(y)):
+                list.write("%s %d\n" %(y[x][0].ljust(width), y[x][1]))
+            #insertJob(c, conn, chosenUnits[x]) 
+            #COMMENTED OUT BECAUSE I DON'T WANT 
+            #ANY MORE JOBS INSERTED UNTIL
+            #AFTER TESTING IS FINISHED
+            #print("\nPart Name          Quantity")
+            c.execute("SELECT Job.Time_needed FROM Job WHERE Job.Job_name = '%s'" %(chosenJob))
+            y = c.fetchone()[0]
+            list.write("\nHours Needed: %d\n\n\n".ljust(width) % (y))
+            conn.close()
     else:
-        pass
+        desktop= os.path.join(os.environ['USERPROFILE'], 'Desktop', "Repair_Job.txt")
+        list = open(desktop, "w+")
+        list.write("NO JOB AND/OR UNIT CHOSEN FOR REPAIR LIST")
+    list.close()
 
  
 #this function is called when the user chooses to print a job list,
@@ -116,8 +128,9 @@ def getReport(e):
         print("ERROR: Your Start Date is After Your End Date")
     #generate the report
     else:
-       print("REPAIR REPORT: %s to %s" %(startDate, endDate))
-       print("Date               Unit               Job Name                Total Cost")
+       desktop= os.path.join(os.environ['USERPROFILE'], 'Desktop', "Repair_Report.txt")
+       report = open(desktop, "w+")
+       report.write("REPAIR REPORT: %s to %s\n\n" %(startDate, endDate))
        conn = sqlite3.connect("testShop.db")
        c = conn.cursor() # used to find the jobs
        #query finds the date of the job, unit nnumber, job name, and hours to complete that job
@@ -126,6 +139,13 @@ def getReport(e):
              WHERE R.VIN = T.VIN and R.Date >= '%s' and R.Date <= '%s' and R.Job_name = J.Job_name
           ''' %(startDate, endDate))      
        y = c.fetchall()
-       for x in range(len(y)):
-          cost = (y[x][3] * shopCost) + (y[x][3] * wage)
-          print("%s %s %s $%.2f" %(y[x][0].ljust(18), str(y[x][1]).ljust(18), y[x][2].ljust(23), cost))
+       if (len(y) > 0):
+           report.write("Date               Unit               Job Name                Total Cost\n")
+           for x in range(len(y)):
+              cost = (y[x][3] * shopCost) + (y[x][3] * wage)
+              report.write("%s %s %s $%.2f\n" %(y[x][0].ljust(18), str(y[x][1]).ljust(18), y[x][2].ljust(23), cost))
+       else:
+           report.write("NO DATA TO REPORT")
+       conn.close()
+       report.close()
+       
