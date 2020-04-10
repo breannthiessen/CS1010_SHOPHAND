@@ -22,6 +22,9 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="interface.py" />
+    <Compile Include="shopHandErrors.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="shopHand.py">
       <SubType>Code</SubType>
     </Compile>
